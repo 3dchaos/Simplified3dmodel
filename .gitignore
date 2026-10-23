@@ -1,0 +1,18 @@
+# 构建 / 测试临时产物
+_test*.html
+_shot*.png
+_final_check.png
+*.log
+
+# 测试用模型（体积大，不入库）
+*.glb
+*.gltf
+*.fbx
+*.obj
+*.stl
+*.ply
+
+# 依赖与系统文件
+node_modules/
+.DS_Store
+Thumbs.db

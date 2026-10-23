@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D 模型简化器 — 本地离线版</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#ffffff; --line:#e3e7ee; --ink:#1b2230; --ink2:#5d6a80;
+    --accent:#2f6fed; --accent2:#1e57c9; --ok:#12a150; --warn:#d97706; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:12px; padding:12px 18px;
+    background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto;
+  }
+  .logo{
+    width:30px;height:30px;border-radius:9px;flex:0 0 auto;
+    background:linear-gradient(135deg,#2f6fed,#6f9dff);
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;
+  }
+  h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+  .sub{font-size:12px;color:var(--ink2)}
+  .badge{
+    margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;
+    background:#e9f7ee;color:#0d7a3d;border:1px solid #c8ecd6;font-weight:600;
+  }
+  main{flex:1;display:flex;min-height:0}
+
+  /* ---- 左侧控制面板 ---- */
+  aside{
+    width:310px;flex:0 0 310px;background:var(--panel);border-right:1px solid var(--line);
+    padding:14px;overflow:hidden;display:flex;flex-direction:column;gap:12px;
+  }
+  .block{display:flex;flex-direction:column;gap:8px}
+  .scroll{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:13px;padding-right:3px}
+  .exp-block{flex:0 0 auto;border-top:1px solid var(--line);padding-top:11px}
+  .pinned{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;padding-top:2px}
+  .label{font-size:12px;font-weight:650;color:var(--ink2);letter-spacing:.4px;text-transform:uppercase}
+
+  #drop{
+    border:2px dashed #ccd4e2;border-radius:var(--radius);padding:18px 14px;text-align:center;
+    cursor:pointer;transition:.18s;background:#fafbfd;
+  }
+  #drop:hover,#drop.over{border-color:var(--accent);background:#f0f5ff}
+  #drop .ico{font-size:26px;line-height:1;margin-bottom:6px;color:var(--accent)}
+  #drop b{display:block;font-size:13px;margin-bottom:3px}
+  #drop span{font-size:11.5px;color:var(--ink2)}
+
+  .filecard{display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fbfcfe}
+  .filecard.on{display:block}
+  .fname{font-weight:600;font-size:13px;word-break:break-all}
+  .fmeta{font-size:11.5px;color:var(--ink2);margin-top:2px}
+
+  .row{display:flex;gap:8px;align-items:stretch}
+  .row input[type=number]{flex:1;min-width:0}
+  .row .chip{flex:0 0 auto;white-space:nowrap;padding:0 14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;
+    padding:6px 11px;font-size:12.5px;cursor:pointer;transition:.15s;font-weight:550;
+  }
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+  input[type=number]{
+    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+    font:inherit;font-size:13px;background:#fff;color:var(--ink);
+  }
+  input[type=number]:focus{outline:2px solid #cfe0ff;border-color:var(--accent)}
+
+  .bigrow{display:flex;align-items:baseline;justify-content:space-between;font-size:13px}
+  .bigrow b{font-size:19px;color:var(--accent);font-variant-numeric:tabular-nums}
+  .muted{color:var(--ink2);font-size:12px}
+
+  button.primary{
+    width:100%;padding:11px;border:0;border-radius:10px;background:var(--accent);color:#fff;
+    font:inherit;font-size:14px;font-weight:650;cursor:pointer;transition:.15s;
+  }
+  button.primary:hover{background:var(--accent2)}
+  button.primary:disabled{background:#c3cddd;cursor:not-allowed}
+
+  .exp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+  .exp button{
+    padding:9px 0;border:1px solid var(--line);background:#fff;border-radius:9px;
+    font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.15s;
+  }
+  .exp button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .exp button:disabled{color:#b9c2d0;cursor:not-allowed}
+
+  .check{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+  .check input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+
+  hr{border:0;border-top:1px solid var(--line);margin:0}
+
+  /* ---- 右侧视图 ---- */
+  section.view{flex:1;display:flex;flex-direction:column;min-width:0;padding:14px;gap:10px}
+  .panes{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
+  .pane{
+    position:relative;background:linear-gradient(180deg,#fbfcfe,#eef2f8);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;min-height:0;
+  }
+  .pane canvas{display:block;width:100%;height:100%;cursor:grab}
+  .pane canvas:active{cursor:grabbing}
+  .ptag{
+    position:absolute;top:10px;left:10px;font-size:11.5px;font-weight:650;color:#33405a;
+    background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:7px;padding:3px 9px;
+    backdrop-filter:blur(6px);pointer-events:none;
+  }
+  .pstat{
+    position:absolute;bottom:9px;left:10px;right:10px;font-size:11.5px;color:#4a5670;
+    background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:7px;
+    padding:4px 9px;display:flex;justify-content:space-between;backdrop-filter:blur(6px);pointer-events:none;
+  }
+  .pstat b{font-variant-numeric:tabular-nums}
+  .empty{
+    position:absolute;inset:0;display:grid;place-items:center;color:#9aa6ba;font-size:13px;
+    pointer-events:none;text-align:center;padding:20px;
+  }
+  .empty.hide{display:none}
+
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 0 auto}
+  .toolbar .spacer{flex:1}
+  .hint{font-size:12px;color:var(--ink2)}
+
+  #busy{
+    position:fixed;inset:0;background:rgba(244,246,249,.78);display:none;place-items:center;
+    z-index:50;backdrop-filter:blur(3px);
+  }
+  #busy.on{display:grid}
+  .spin{
+    width:34px;height:34px;border:3px solid #d5deec;border-top-color:var(--accent);
+    border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 10px;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .busybox{text-align:center;font-size:13px;color:var(--ink2);font-weight:600}
+
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);opacity:0;transition:.25s;
+    background:#1b2230;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+    pointer-events:none;z-index:60;box-shadow:0 8px 26px rgba(20,30,50,.24);
+  }
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+  #toast.err{background:#b4232c}
+
+  @media(max-width:900px){
+    main{flex-direction:column}
+    aside{width:auto;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--line);max-height:46vh}
+    .panes{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">3D</div>
+  <div>
+    <h1>3D 模型简化器</h1>
+    <div class="sub">meshoptimizer 引擎 · 全程浏览器本地运算</div>
+  </div>
+  <div class="badge">离线运行 · 零外部请求</div>
+</header>
+
+<main>
+  <aside>
+    <div class="scroll">
+    <div class="block">
+      <div class="label">1 · 载入模型</div>
+      <div id="drop">
+        <div class="ico">⬆</div>
+        <b>拖入或点击选择文件</b>
+        <span>GLB · GLTF · FBX · OBJ · STL · PLY · OFF<br>不上传服务器</span>
+      </div>
+      <input type="file" id="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.off" hidden>
+      <div class="filecard" id="filecard">
+        <div class="fname" id="fname">—</div>
+        <div class="fmeta" id="fmeta">—</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="block">
+      <div class="label">2 · 简化目标</div>
+      <div class="bigrow">
+        <span class="muted">保留面数比例</span>
+        <b id="ratioTxt">50%</b>
+      </div>
+      <input type="range" id="ratio" min="1" max="100" value="50" step="1">
+      <div class="chips" id="presets">
+        <button class="chip on" data-r="50">50%</button>
+        <button class="chip" data-r="25">25%</button>
+        <button class="chip" data-r="20">20%</button>
+        <button class="chip" data-r="10">10%</button>
+        <button class="chip" data-r="5">5%</button>
+        <button class="chip" data-r="1">1%</button>
+      </div>
+      <div class="muted" style="margin-top:2px">或直接指定目标面数</div>
+      <div class="row">
+        <input type="number" id="targetFaces" min="4" step="100" placeholder="例如 5000">
+        <button class="chip" id="useTarget">应用</button>
+      </div>
+      <div class="bigrow" style="margin-top:4px">
+        <span class="muted">误差上限</span>
+        <b id="errTxt">0.01</b>
+      </div>
+      <input type="range" id="errTh" min="1" max="100" value="10" step="1">
+      <div class="muted" style="font-size:11.5px;line-height:1.45">
+        0.01 = 表面偏移超过模型尺寸 1% 就提前停止，宁可少减也不破形。
+      </div>
+    </div>
+
+    <div class="block">
+      <label class="check"><input type="checkbox" id="weld" checked> 焊接顶点（合并重复顶点）</label>
+      <label class="check"><input type="checkbox" id="lockBorder"> 锁定边界（开放边保持原位）</label>
+      <label class="check"><input type="checkbox" id="uvWeight"> 保护 UV（贴图拉伸更小）</label>
+      <label class="check"><input type="checkbox" id="flat"> 导出时保留硬边（平直着色）</label>
+      <label class="check"><input type="checkbox" id="wire"> 显示线框</label>
+      <div class="muted" style="font-size:11.5px;line-height:1.45;margin-top:-2px" id="uvHint">
+        简化引擎：meshoptimizer（与原站相同）。
+      </div>
+    </div>
+
+    </div>
+
+    <div class="pinned">
+      <button class="primary" id="run" disabled>开始简化</button>
+      <button class="chip" id="reset" style="width:100%;padding:9px" disabled>↺ 恢复原模型</button>
+
+      <div class="block exp-block">
+        <div class="label">3 · 导出</div>
+        <div class="exp">
+          <button id="expGLB" disabled>GLB</button>
+          <button id="expOBJ" disabled>OBJ</button>
+          <button id="expSTL" disabled>STL</button>
+        </div>
+        <div class="muted">导出的是当前视图中的简化结果</div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="view">
+    <div class="toolbar">
+      <span class="hint">拖拽旋转 · 滚轮缩放 · 右键拖动平移</span>
+      <div class="spacer"></div>
+      <button class="chip" id="fitBtn">适应视图</button>
+      <button class="chip" id="resetCam">重置相机</button>
+    </div>
+    <div class="panes">
+      <div class="pane">
+        <canvas id="cvA"></canvas>
+        <div class="ptag">原始模型</div>
+        <div class="pstat"><span>面数 <b id="saF">—</b></span><span>顶点 <b id="saV">—</b></span></div>
+        <div class="empty" id="emA">尚未载入模型</div>
+      </div>
+      <div class="pane">
+        <canvas id="cvB"></canvas>
+        <div class="ptag">简化结果</div>
+        <div class="pstat"><span>面数 <b id="sbF">—</b></span><span>压缩 <b id="sbR">—</b></span></div>
+        <div class="empty" id="emB">点击「开始简化」后显示</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="busy"><div><div class="spin"></div><div class="busybox" id="busyTxt">处理中…</div></div></div>
+<div id="toast"></div>
+
+<script src="meshopt-global.js"></script>
+<script src="mesh-core.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   1. 渲染器
+   ============================================================ */
+const VS = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+uniform mat4 uMVP;
+varying vec3 vN;
+varying vec3 vP;
+void main(){
+  vN = aNormal;
+  vP = aPos;
+  gl_Position = uMVP * vec4(aPos, 1.0);
+}`;
+const FS = `
+precision mediump float;
+varying vec3 vN;
+varying vec3 vP;
+uniform vec3 uEye;
+uniform vec3 uColor;
+uniform float uWireMode;
+void main(){
+  vec3 N = normalize(vN);
+  if (!gl_FrontFacing) N = -N;
+  vec3 V = normalize(uEye - vP);
+  vec3 L1 = normalize(vec3(0.45, 0.85, 0.62));
+  vec3 L2 = normalize(vec3(-0.75, 0.15, -0.55));
+  vec3 L3 = normalize(vec3(0.1, -0.9, 0.35));
+  float d = max(dot(N, L1), 0.0) * 0.88
+          + max(dot(N, L2), 0.0) * 0.30
+          + max(dot(N, L3), 0.0) * 0.10;
+  vec3 col = uColor * (0.24 + d);
+  float spec = pow(max(dot(reflect(-L1, N), V), 0.0), 92.0) * 0.22;
+  col += vec3(spec);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.4) * 0.14;
+  col += vec3(rim);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+function compile(gl, type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+
+function createRenderer(canvas){
+  const opts = {antialias:true, alpha:false, depth:true, powerPreference:'high-performance'};
+  const gl = canvas.getContext('webgl2', opts) || canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+  if(!gl) throw new Error('当前浏览器不支持 WebGL');
+  const isGL2 = !!(window.WebGL2RenderingContext && gl instanceof window.WebGL2RenderingContext);
+  if(!isGL2 && !gl.getExtension('OES_element_index_uint')){
+    throw new Error('当前浏览器缺少 32 位索引扩展（OES_element_index_uint），请换用新版 Chrome / Edge / Firefox');
+  }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+
+  const loc = {
+    aPos: gl.getAttribLocation(prog, 'aPos'),
+    aNormal: gl.getAttribLocation(prog, 'aNormal'),
+    uMVP: gl.getUniformLocation(prog, 'uMVP'),
+    uEye: gl.getUniformLocation(prog, 'uEye'),
+    uColor: gl.getUniformLocation(prog, 'uColor')
+  };
+
+  const R = {
+    gl, canvas, prog, loc,
+    bufPos: gl.createBuffer(), bufNrm: gl.createBuffer(),
+    bufIdx: gl.createBuffer(), bufWire: gl.createBuffer(),
+    nIdx: 0, nWire: 0, hasMesh: false, color: [0.62, 0.70, 0.84], wire: false
+  };
+
+  R.setMesh = function(positions, indices, wireIndices){
+    gl.bindBuffer(gl.ARRAY_BUFFER, R.bufPos);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, R.bufNrm);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW); // 占位，稍后覆盖
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.bufIdx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+    R.nIdx = indices.length;
+    if(wireIndices && wireIndices.length){
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.bufWire);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, wireIndices, gl.STATIC_DRAW);
+      R.nWire = wireIndices.length;
+    } else R.nWire = 0;
+    R.hasMesh = true;
+  };
+
+  R.setNormals = function(normals){
+    gl.bindBuffer(gl.ARRAY_BUFFER, R.bufNrm);
+    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+  };
+
+  R.draw = function(mvp, eye){
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0.945, 0.958, 0.978, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    if(!R.hasMesh) return;
+
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(loc.uMVP, false, mvp);
+    gl.uniform3fv(loc.uEye, eye);
+    gl.uniform3fv(loc.uColor, R.color);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, R.bufPos);
+    gl.enableVertexAttribArray(loc.aPos);
+    gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, R.bufNrm);
+    gl.enableVertexAttribArray(loc.aNormal);
+    gl.vertexAttribPointer(loc.aNormal, 3, gl.FLOAT, false, 0, 0);
+
+    if(R.wire){
+      // 把面往后推一点，避免线框与表面 z-fighting
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(1.0, 1.0);
+    }
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.bufIdx);
+    gl.drawElements(gl.TRIANGLES, R.nIdx, gl.UNSIGNED_INT, 0);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+
+    if(R.wire && R.nWire){
+      gl.disable(gl.CULL_FACE);
+      gl.uniform3f(loc.uColor, 0.09, 0.13, 0.21);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.bufWire);
+      gl.drawElements(gl.LINES, R.nWire, gl.UNSIGNED_INT, 0);
+      gl.enable(gl.CULL_FACE);
+    }
+  };
+  return R;
+}
+
+/* ============================================================
+   2. 矩阵
+   ============================================================ */
+function perspective(fovy, aspect, near, far){
+  const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, 2 * far * near * nf, 0
+  ]);
+}
+function lookAt(eye, center, up){
+  let zx = eye[0]-center[0], zy = eye[1]-center[1], zz = eye[2]-center[2];
+  let l = Math.hypot(zx,zy,zz) || 1; zx/=l; zy/=l; zz/=l;
+  let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+  l = Math.hypot(xx,xy,xz) || 1; xx/=l; xy/=l; xz/=l;
+  const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+  return new Float32Array([
+    xx, yx, zx, 0,
+    xy, yy, zy, 0,
+    xz, yz, zz, 0,
+    -(xx*eye[0]+xy*eye[1]+xz*eye[2]),
+    -(yx*eye[0]+yy*eye[1]+yz*eye[2]),
+    -(zx*eye[0]+zy*eye[1]+zz*eye[2]),
+    1
+  ]);
+}
+function mul(a, b){
+  const o = new Float32Array(16);
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++){
+    let s=0; for(let k=0;k<4;k++) s += a[k*4+r]*b[c*4+k];
+    o[c*4+r]=s;
+  }
+  return o;
+}
+
+/* ============================================================
+   3. 相机
+   ============================================================ */
+const cam = { yaw: 0.7, pitch: 0.42, dist: 3, target: [0,0,0], fitDist: 3, fov: 45*Math.PI/180 };
+function camEye(){
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  return [
+    cam.target[0] + cam.dist * cp * Math.sin(cam.yaw),
+    cam.target[1] + cam.dist * sp,
+    cam.target[2] + cam.dist * cp * Math.cos(cam.yaw)
+  ];
+}
+function camMVP(canvas){
+  const a = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const eye = camEye();
+  const V = lookAt(eye, cam.target, [0,1,0]);
+  const P = perspective(cam.fov, a, cam.dist * 0.002, cam.dist * 200 + 1000);
+  return { mvp: mul(P, V), eye };
+}
+function fitCamera(bbox){
+  if(!bbox) return;
+  cam.target = [(bbox.min[0]+bbox.max[0])/2, (bbox.min[1]+bbox.max[1])/2, (bbox.min[2]+bbox.max[2])/2];
+  const sx = bbox.max[0]-bbox.min[0], sy = bbox.max[1]-bbox.min[1], sz = bbox.max[2]-bbox.min[2];
+  const r = Math.max(Math.hypot(sx, sy, sz) * 0.5, 1e-4);
+  cam.fitDist = r / Math.sin(cam.fov * 0.5) * 1.15;
+  cam.dist = cam.fitDist;
+}
+
+/* ============================================================
+   4. 渲染网格构建（按 60° 折角拆点，保留硬边）
+   ============================================================ */
+function buildRenderMesh(positions, indices, creaseDeg){
+  const cosT = Math.cos((creaseDeg === undefined ? 62 : creaseDeg) * Math.PI / 180);
+  const nf = indices.length / 3;
+  const nv = positions.length / 3;
+
+  // 面法线
+  const fn = new Float32Array(nf * 3);
+  for(let f=0; f<nf; f++){
+    const i0=indices[f*3], i1=indices[f*3+1], i2=indices[f*3+2];
+    const ax=positions[i0*3], ay=positions[i0*3+1], az=positions[i0*3+2];
+    const bx=positions[i1*3], by=positions[i1*3+1], bz=positions[i1*3+2];
+    const cx=positions[i2*3], cy=positions[i2*3+1], cz=positions[i2*3+2];
+    let nx=(by-ay)*(cz-az)-(bz-az)*(cy-ay);
+    let ny=(bz-az)*(cx-ax)-(bx-ax)*(cz-az);
+    let nz=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+    const l=Math.hypot(nx,ny,nz)||1;
+    fn[f*3]=nx/l; fn[f*3+1]=ny/l; fn[f*3+2]=nz/l;
+  }
+
+  // 顶点 → 法线簇
+  const vfaces = new Array(nv);
+  for(let i=0;i<nv;i++) vfaces[i]=[];
+  for(let f=0; f<nf; f++){
+    vfaces[indices[f*3]].push(f);
+    vfaces[indices[f*3+1]].push(f);
+    vfaces[indices[f*3+2]].push(f);
+  }
+
+  const outPos = [], outNrm = [];
+  const cornerOf = new Int32Array(nf * 3).fill(-1); // 面角 → 输出顶点
+
+  for(let vi=0; vi<nv; vi++){
+    const fs = vfaces[vi];
+    if(fs.length === 0) continue;
+    const clusters = []; // {nx,ny,nz,count,id}
+    const assign = new Map();
+    for(let k=0;k<fs.length;k++){
+      const f = fs[k];
+      const nx=fn[f*3], ny=fn[f*3+1], nz=fn[f*3+2];
+      let ci = -1;
+      for(let c=0;c<clusters.length;c++){
+        const cl = clusters[c];
+        const l1 = Math.hypot(cl.nx,cl.ny,cl.nz)||1;
+        if((cl.nx*nx+cl.ny*ny+cl.nz*nz)/l1 > cosT){ ci=c; break; }
+      }
+      if(ci < 0){
+        ci = clusters.length;
+        clusters.push({nx:0,ny:0,nz:0,id:-1});
+      }
+      const cl = clusters[ci];
+      cl.nx += nx; cl.ny += ny; cl.nz += nz;
+      assign.set(f, ci);
+    }
+    // 为每个簇生成一个输出顶点
+    const ids = [];
+    for(let c=0;c<clusters.length;c++){
+      const cl = clusters[c];
+      const l = Math.hypot(cl.nx,cl.ny,cl.nz)||1;
+      const id = outPos.length/3;
+      outPos.push(positions[vi*3], positions[vi*3+1], positions[vi*3+2]);
+      outNrm.push(cl.nx/l, cl.ny/l, cl.nz/l);
+      ids.push(id);
+      cl.id = id;
+    }
+    for(let k=0;k<fs.length;k++){
+      const f = fs[k];
+      const ci = assign.get(f);
+      const id = ids[ci];
+      // 写入该面中对应这个顶点的角
+      const b = f*3;
+      for(let t=0;t<3;t++) if(indices[b+t] === vi && cornerOf[b+t] === -1) cornerOf[b+t] = id;
+    }
+  }
+
+  const outIdx = new Uint32Array(nf * 3);
+  for(let i=0;i<nf*3;i++) outIdx[i] = cornerOf[i] < 0 ? 0 : cornerOf[i];
+
+  // 线框边（去重）——超大网格跳过，避免构建过慢
+  const wire = [];
+  if(nf <= 250000){
+    const seen = new Set();
+    for(let f=0; f<nf; f++){
+      const a=outIdx[f*3], b=outIdx[f*3+1], c=outIdx[f*3+2];
+      const pairs = [[a,b],[b,c],[c,a]];
+      for(const [x,y] of pairs){
+        const k = x<y ? x+'_'+y : y+'_'+x;
+        if(seen.has(k)) continue;
+        seen.add(k);
+        wire.push(x, y);
+      }
+    }
+  }
+
+  return {
+    positions: new Float32Array(outPos),
+    normals: new Float32Array(outNrm),
+    indices: outIdx,
+    wire: new Uint32Array(wire)
+  };
+}
+
+/* ============================================================
+   5. 应用状态与交互
+   ============================================================ */
+const state = { original: null, current: null, rawMesh: null, fileName: '', ratio: 0.5, busy: false, engine: 'qem' };
+let enginePromise = null;
+let rendererA = null, rendererB = null;
+let dirty = true;
+
+function toast(msg, isErr){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'on' + (isErr ? ' err' : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>{ t.className = isErr ? 'err' : ''; }, 2600);
+}
+function busy(on, txt){
+  state.busy = on;
+  $('busyTxt').textContent = txt || '处理中…';
+  $('busy').classList.toggle('on', on);
+  refreshStats();
+}
+function fmt(n){ return n.toLocaleString('zh-CN'); }
+
+function uploadTo(renderer, mesh){
+  const rm = buildRenderMesh(mesh.positions, mesh.indices);
+  renderer.setMesh(rm.positions, rm.indices, rm.wire);
+  renderer.setNormals(rm.normals);
+}
+
+function refreshStats(){
+  const o = state.original, c = state.current;
+  $('saF').textContent = o ? fmt(o.indices.length/3) : '—';
+  $('saV').textContent = o ? fmt(o.positions.length/3) : '—';
+  $('sbF').textContent = c ? fmt(c.indices.length/3) : '—';
+  if(o && c){
+    const pct = (1 - (c.indices.length/3) / (o.indices.length/3)) * 100;
+    $('sbR').textContent = pct.toFixed(1) + '%';
+  } else $('sbR').textContent = '—';
+  const has = !!c;
+  $('expGLB').disabled = !has; $('expOBJ').disabled = !has; $('expSTL').disabled = !has;
+  $('reset').disabled = !state.original;
+  $('run').disabled = !state.original || state.busy;
+}
+
+function draw(){
+  if(!rendererA) return;
+  const a = camMVP($('cvA'));
+  rendererA.wire = $('wire').checked;
+  rendererA.draw(a.mvp, a.eye);
+  if(rendererB){
+    const b = camMVP($('cvB'));
+    rendererB.wire = $('wire').checked;
+    rendererB.draw(b.mvp, b.eye);
+  }
+}
+function loop(){
+  if(dirty){ dirty = false; draw(); }
+  requestAnimationFrame(loop);
+}
+
+/* ---- 相机交互 ---- */
+function bindOrbit(canvas){
+  let drag = null;
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, btn: e.button, yaw: cam.yaw, pitch: cam.pitch,
+             tgt: cam.target.slice(), dist: cam.dist };
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if(drag.btn === 2 || drag.btn === 1){
+      // 平移
+      const k = drag.dist * 0.0016;
+      const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+      const right = [Math.cos(drag.yaw), 0, -Math.sin(drag.yaw)];
+      const up = [-Math.sin(drag.yaw)*sp, cp, -Math.cos(drag.yaw)*sp];
+      cam.target = [
+        drag.tgt[0] - right[0]*dx*k + up[0]*dy*k,
+        drag.tgt[1] - right[1]*dx*k + up[1]*dy*k,
+        drag.tgt[2] - right[2]*dx*k + up[2]*dy*k
+      ];
+    } else {
+      cam.yaw = drag.yaw - dx * 0.008;
+      cam.pitch = Math.max(-1.52, Math.min(1.52, drag.pitch + dy * 0.008));
+    }
+    dirty = true;
+  });
+  const stop = e => { drag = null; };
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointercancel', stop);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    cam.dist = Math.max(cam.fitDist * 0.06, Math.min(cam.fitDist * 24, cam.dist * Math.exp(e.deltaY * 0.0012)));
+    dirty = true;
+  }, { passive: false });
+}
+
+/* ---- 载入文件 ---- */
+async function loadFile(file){
+  if(!file) return;
+  if(!/\.(glb|gltf|fbx|obj|stl|ply|off)$/i.test(file.name)){
+    toast('仅支持 GLB / GLTF / FBX / OBJ / STL / PLY / OFF', true); return;
+  }
+  busy(true, '正在解析 ' + file.name + '…');
+  await new Promise(r => setTimeout(r, 30));
+  try{
+    const buf = await file.arrayBuffer();
+    const t0 = performance.now();
+    const mesh = await MeshCore.loadBuffer(buf, file.name);
+    const faces = mesh.indices.length / 3;
+    if(faces === 0) throw new Error('文件中没有有效的三角形面');
+    if(faces > 900000) throw new Error('面数过多（' + fmt(faces) + '），请先在别处预处理到 90 万面以内');
+    state.rawMesh = mesh.raw || null;
+    state.original = mesh;
+    state.current = null;
+    state.fileName = (file.name || 'model').replace(/\.[^.]+$/, '');
+
+    const hasUV = !!(mesh.uvs && mesh.uvs.length);
+    $('uvWeight').disabled = !hasUV;
+    $('uvWeight').checked = false;
+    $('uvHint').textContent = '简化引擎：' + (state.engine === 'meshoptimizer' ? 'meshoptimizer（与原站相同）' : '内置 QEM（回退）') +
+      ' · ' + (hasUV ? '该文件含 UV，已随顶点保留' : '该文件不含 UV');
+
+    $('fname').textContent = file.name;
+    $('fmeta').textContent = fmt(faces) + ' 面 · ' + fmt(mesh.positions.length/3) + ' 顶点 · ' +
+      (hasUV ? '含 UV · ' : '无 UV · ') + '解析 ' + Math.round(performance.now()-t0) + ' ms';
+    $('filecard').classList.add('on');
+    $('emA').classList.add('hide');
+    $('emB').classList.remove('hide');
+    $('emB').textContent = '点击「开始简化」后显示';
+    $('targetFaces').value = Math.round(faces * state.ratio);
+    fitCamera(MeshCore.bbox(mesh.positions));
+    uploadTo(rendererA, mesh);
+    rendererB.setMesh(new Float32Array([0,0,0]), new Uint32Array([0,0,0]), null);
+    rendererB.hasMesh = false;
+    refreshStats();
+    dirty = true;
+    toast('已载入 ' + fmt(faces) + ' 面');
+  }catch(err){
+    toast('载入失败：' + err.message, true);
+    console.error(err);
+  }finally{
+    busy(false);
+  }
+}
+
+/* ---- 按「保留 UV」开关重新焊接 ---- */
+function reweld(){
+  const raw = state.rawMesh;
+  if(!raw) return;
+  const doWeld = $('weld').checked;
+  const w = doWeld
+    ? MeshCore.weld(raw.positions, raw.indices, raw.uvs || null)
+    : { positions: raw.positions, indices: raw.indices, uvs: raw.uvs || null };
+  w.name = state.fileName;
+  state.original = w;
+  state.current = null;
+
+  const faces = w.indices.length / 3;
+  $('fmeta').textContent = fmt(faces) + ' 面 · ' + fmt(w.positions.length/3) + ' 顶点 · ' +
+    (w.uvs ? '含 UV' : '无 UV');
+  $('targetFaces').value = Math.max(4, Math.round(faces * state.ratio));
+  uploadTo(rendererA, w);
+  rendererB.hasMesh = false;
+  $('emB').classList.remove('hide');
+  $('emB').textContent = '点击「开始简化」后显示';
+  refreshStats();
+  dirty = true;
+}
+
+/* ---- 执行简化 ---- */
+async function runSimplify(){
+  if(!state.original || state.busy) return;
+  const srcFaces = state.original.indices.length / 3;
+  let target = parseInt($('targetFaces').value, 10);
+  if(!isFinite(target) || target < 4) target = Math.round(srcFaces * state.ratio);
+  target = Math.max(4, Math.min(srcFaces - 1, target));
+
+  if(enginePromise) await enginePromise;
+  busy(true, '正在简化到 ' + fmt(target) + ' 面…');
+  await new Promise(r => setTimeout(r, 40));
+  try{
+    const opts = {
+      boundaryWeight: 8,
+      lockBorder: $('lockBorder').checked,
+      uvWeight: ($('uvWeight').checked && !$('uvWeight').disabled) ? 1.0 : 0
+    };
+    const th = parseInt($('errTh').value, 10) / 1000;
+    if(isFinite(th) && th > 0) opts.maxDist = th;
+    const res = MeshCore.simplify(state.original, target, opts);
+    state.current = { positions: res.positions, indices: res.indices, uvs: res.uvs || null };
+    uploadTo(rendererB, state.current);
+    $('emB').classList.add('hide');
+    refreshStats();
+    dirty = true;
+    toast('完成：' + fmt(res.stats.srcFaces) + ' → ' + fmt(res.stats.dstFaces) + ' 面（' + res.stats.engine + '），耗时 ' + res.stats.ms + ' ms');
+  }catch(err){
+    toast('简化失败：' + err.message, true);
+    console.error(err);
+  }finally{
+    busy(false);
+  }
+}
+
+/* ---- 导出 ---- */
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function doExport(kind){
+  const m = state.current;
+  if(!m) return;
+  const base = (state.fileName || 'model') + '_simplified';
+  const flat = $('flat').checked;
+  try{
+    if(kind === 'glb') download(MeshCore.exportGLB(m.positions, m.indices, flat, m.uvs), base + '.glb');
+    else if(kind === 'obj') download(MeshCore.exportOBJ(m.positions, m.indices, base, m.uvs), base + '.obj');
+    else {
+      download(MeshCore.exportSTL(m.positions, m.indices), base + '.stl');
+      if(m.uvs) { toast('STL 格式不支持 UV，已仅导出几何'); return; }
+    }
+    toast('已导出 ' + base + '.' + kind + (m.uvs ? '（含 UV）' : ''));
+  }catch(err){
+    toast('导出失败：' + err.message, true);
+  }
+}
+
+/* ---- 事件绑定 ---- */
+function bindUI(){
+  const drop = $('drop'), fi = $('file');
+  drop.addEventListener('click', ()=> fi.click());
+  fi.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); fi.value=''; });
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+
+  // 全窗口拖放
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if(f) loadFile(f);
+  });
+
+  const ratio = $('ratio'), ratioTxt = $('ratioTxt');
+  const syncRatio = () => {
+    state.ratio = parseInt(ratio.value, 10) / 100;
+    ratioTxt.textContent = ratio.value + '%';
+    if(state.original){
+      $('targetFaces').value = Math.max(4, Math.round(state.original.indices.length/3 * state.ratio));
+    }
+    document.querySelectorAll('#presets .chip').forEach(c => {
+      c.classList.toggle('on', c.dataset.r === ratio.value);
+    });
+  };
+  ratio.addEventListener('input', syncRatio);
+
+  const err = $('errTh'), errTxt = $('errTxt');
+  const syncErr = () => { errTxt.textContent = (parseInt(err.value, 10) / 1000).toFixed(3); };
+  err.addEventListener('input', syncErr);
+  syncErr();
+  document.querySelectorAll('#presets .chip').forEach(c => {
+    c.addEventListener('click', () => { ratio.value = c.dataset.r; syncRatio(); });
+  });
+
+  $('useTarget').addEventListener('click', () => {
+    const v = parseInt($('targetFaces').value, 10);
+    if(!state.original) { toast('请先载入模型', true); return; }
+    if(!isFinite(v) || v < 4) { toast('请输入有效面数', true); return; }
+    const src = state.original.indices.length / 3;
+    ratio.value = Math.max(1, Math.min(100, Math.round(v / src * 100)));
+    syncRatio();
+  });
+
+  $('run').addEventListener('click', runSimplify);
+  $('reset').addEventListener('click', () => {
+    state.current = null;
+    rendererB.hasMesh = false;
+    $('emB').classList.remove('hide');
+    $('emB').textContent = '点击「开始简化」后显示';
+    refreshStats(); dirty = true;
+    toast('已恢复原模型');
+  });
+  $('expGLB').addEventListener('click', ()=>doExport('glb'));
+  $('expOBJ').addEventListener('click', ()=>doExport('obj'));
+  $('expSTL').addEventListener('click', ()=>doExport('stl'));
+  $('wire').addEventListener('change', ()=> dirty = true);
+  $('weld').addEventListener('change', () => { reweld(); });
+  $('fitBtn').addEventListener('click', ()=>{
+    if(state.original){ fitCamera(MeshCore.bbox(state.original.positions)); dirty = true; }
+  });
+  $('resetCam').addEventListener('click', ()=>{
+    cam.yaw = 0.7; cam.pitch = 0.42;
+    if(state.original) cam.dist = cam.fitDist;
+    dirty = true;
+  });
+
+  window.addEventListener('resize', ()=> dirty = true);
+  window.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.repeat && state.original && !state.busy) runSimplify();
+  });
+}
+
+/* ---- 启动 ---- */
+function boot(){
+  try{
+    rendererA = createRenderer($('cvA'));
+    rendererB = createRenderer($('cvB'));
+    rendererA.color = [0.66, 0.73, 0.86];
+    rendererB.color = [0.36, 0.56, 0.95];
+    rendererB.hasMesh = false;
+  }catch(err){
+    document.body.innerHTML = '<div style="padding:40px;font:15px/1.7 sans-serif;color:#b4232c">' +
+      '无法初始化 WebGL：' + err.message + '<br><br>请使用较新的 Chrome / Edge / Firefox 打开本文件。</div>';
+    return;
+  }
+  bindUI();
+  bindOrbit($('cvA'));
+  bindOrbit($('cvB'));
+  cam.target = [0,0,0];
+  cam.fitDist = 3; cam.dist = 3;
+  syncInit();
+  requestAnimationFrame(loop);
+  // 加载简化引擎（meshoptimizer，与原站相同算法）
+  enginePromise = MeshCore.initEngine().then(ok => {
+    state.engine = ok ? 'meshoptimizer' : 'qem';
+    const hint = $('uvHint');
+    if(hint) hint.textContent = '简化引擎：' + (ok ? 'meshoptimizer（与原站相同）' : '内置 QEM（回退）');
+    if(typeof console !== 'undefined') console.log('[engine]', state.engine);
+  });
+  // 暴露给调试
+  window.__app = { state, cam, MeshCore };
+}
+function syncInit(){
+  const ratio = $('ratio');
+  state.ratio = parseInt(ratio.value,10)/100;
+  $('ratioTxt').textContent = ratio.value + '%';
+}
+boot();
+})();
+</script>
+</body>
+</html>
