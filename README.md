@@ -3,6 +3,15 @@
 原站 `tiny-online.tools` 的 3D 模型简化器加载极慢，本目录是一个功能对等的**完全离线**替代实现：
 双击 HTML 就能用，不联网、不装软件、不上传模型，**保留 UV**，并且用的是**与原站同一份简化算法**（meshoptimizer）。
 
+## 在线使用 / 下载
+
+| | 地址 |
+|---|---|
+| 在线版（免安装，直接开） | https://3dchaos.github.io/Simplified3dmodel/ |
+| 单文件版下载（双击即用） | [Releases · v1.0.0](https://github.com/3dchaos/Simplified3dmodel/releases/latest) |
+
+在线版由 GitHub Pages 托管，首次打开需要下载约 190 KB 的脚本；单文件版则完全离线，适合拷给别人或在内网用。
+
 ## 为什么原站那么慢
 
 实测（从中国大陆访问）：
